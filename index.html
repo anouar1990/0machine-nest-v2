@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>0machine Nest — Autonomous CAD/CAM Nesting Engine</title>
+    <meta name="description" content="Industrial 2D irregular nesting engine with genetic optimization, kerf compensation, and sheet packing by 0machine.">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- Subtle Grid Background -->
+    <div class="grid-bg"></div>
+
+    <div class="app-container">
+        <!-- Top Navigation / Header -->
+        <header class="app-header">
+            <div class="brand-section">
+                <div class="brand-logo">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                        <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
+                        <polyline points="2 17 12 22 22 17"></polyline>
+                        <polyline points="2 12 12 17 22 12"></polyline>
+                    </svg>
+                </div>
+                <div>
+                    <h1 class="brand-title">0machine <span>Nest</span></h1>
+                </div>
+                <div class="brand-badge">Auto-Nesting v2.0</div>
+            </div>
+
+            <div class="header-actions">
+                <div class="status-pill" id="statusPill">
+                    <span class="pulse-dot"></span>
+                    <span id="statusText">Engine Ready</span>
+                </div>
+                <button class="glow-btn" id="startBtn">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                    </svg>
+                    Start Auto-Nesting
+                </button>
+                <button class="btn-secondary" id="stopBtn" disabled>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                        <rect x="6" y="4" width="4" height="16"></rect>
+                        <rect x="14" y="4" width="4" height="16"></rect>
+                    </svg>
+                    Pause
+                </button>
+                <button class="btn-secondary" id="exportBtn">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="7 10 12 15 17 10"></polyline>
+                        <line x1="12" y1="15" x2="12" y2="3"></line>
+                    </svg>
+                    Export SVG
+                </button>
+            </div>
+        </header>
+
+        <!-- Main 3-Column Layout -->
+        <main class="main-layout">
+            <!-- Left Sidebar: Part Library & Import -->
+            <aside class="glass-panel">
+                <div class="panel-header">
+                    <div class="panel-title">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                            <line x1="3" y1="9" x2="21" y2="9"></line>
+                            <line x1="9" y1="21" x2="9" y2="9"></line>
+                        </svg>
+                        Part Inventory
+                    </div>
+                </div>
+
+                <div class="panel-body">
+                    <!-- Drag & Drop SVG / DXF Zone -->
+                    <div class="dropzone" id="dropzone">
+                        <input type="file" id="fileInput" accept=".svg,.dxf" style="display:none">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                            <polyline points="17 8 12 3 7 8"></polyline>
+                            <line x1="12" y1="3" x2="12" y2="15"></line>
+                        </svg>
+                        <div class="dropzone-text">Upload CAD File (SVG / DXF)</div>
+                        <div class="dropzone-sub">Drag & drop AutoCAD, SolidWorks or Fusion DXF</div>
+                    </div>
+
+                    <!-- Quick Sample DXF Loader -->
+                    <div style="display: flex; gap: 8px; margin-top: -6px;">
+                        <button class="btn-secondary" id="loadSampleDxfBtn" style="flex: 1; padding: 8px 12px; font-size: 11px; border-radius: 8px;">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                <polyline points="7 10 12 15 17 10"></polyline>
+                                <line x1="12" y1="15" x2="12" y2="3"></line>
+                            </svg>
+                            + Import Sample DXF Parts
+                        </button>
+                    </div>
+
+                    <!-- Parts List -->
+                    <div class="control-label">
+                        <span>Loaded Parts</span>
+                    </div>
+                    <div id="partsList" style="display: flex; flex-direction: column; gap: 10px;">
+                        <!-- Dynamically populated -->
+                    </div>
+                </div>
+            </aside>
+
+            <!-- Center Panel: Interactive Sheet Canvas -->
+            <section class="glass-panel canvas-panel">
+                <div class="canvas-toolbar">
+                    <div class="viewport-info">
+                        <div class="viewport-tag">
+                            <span>Sheet:</span>
+                            <strong id="hudSheetCount">1</strong>
+                        </div>
+                        <div class="viewport-tag">
+                            <span>Scroll to Zoom</span>
+                        </div>
+                        <div class="viewport-tag">
+                            <span>Drag to Pan</span>
+                        </div>
+                    </div>
+                    <button class="btn-icon" id="resetBtn" title="Reset View & Nesting">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path>
+                            <path d="M21 3v5h-5"></path>
+                            <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path>
+                            <path d="M8 16H3v5"></path>
+                        </svg>
+                    </button>
+                </div>
+
+                <div class="canvas-container" id="canvasContainer">
+                    <canvas id="nestCanvas"></canvas>
+                </div>
+            </section>
+
+            <!-- Right Sidebar: Operations & Telemetry & Devis -->
+            <aside class="glass-panel">
+                <div class="panel-header">
+                    <div class="panel-title">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="18" y1="20" x2="18" y2="10"></line>
+                            <line x1="12" y1="20" x2="12" y2="4"></line>
+                            <line x1="6" y1="20" x2="6" y2="14"></line>
+                        </svg>
+                        0machine Operations
+                    </div>
+                </div>
+
+                <div class="panel-body">
+                    <!-- Tab Switcher -->
+                    <div class="tab-nav">
+                        <button class="tab-btn active" id="tabTelemetryBtn">Telemetry</button>
+                        <button class="tab-btn" id="tabDevisBtn">Devis & Quotation</button>
+                    </div>
+
+                    <!-- TAB 1: TELEMETRY & CONTROLS -->
+                    <div id="telemetryTabContent" style="display: flex; flex-direction: column; gap: 14px;">
+                        <!-- HUD Metrics Grid -->
+                        <div class="hud-grid">
+                            <div class="hud-card">
+                                <div class="hud-label">Sheet Yield</div>
+                                <div class="hud-value" id="hudEfficiency">0<span>%</span></div>
+                            </div>
+                            <div class="hud-card">
+                                <div class="hud-label">Placed Parts</div>
+                                <div class="hud-value" id="hudPlaced">0 / 0</div>
+                            </div>
+                            <div class="hud-card">
+                                <div class="hud-label">Parts in Holes</div>
+                                <div class="hud-value" id="hudHoles">0</div>
+                            </div>
+                            <div class="hud-card">
+                                <div class="hud-label">Shared Cut</div>
+                                <div class="hud-value" id="hudSharedCut">0<span>mm</span></div>
+                            </div>
+                        </div>
+
+                        <!-- Sheet Dimensions -->
+                        <div class="control-group">
+                            <div class="control-label">
+                                <span>Sheet Size (mm)</span>
+                            </div>
+                            <div class="input-row">
+                                <input type="number" class="input-field" id="sheetWidth" value="1000" placeholder="Width">
+                                <input type="number" class="input-field" id="sheetHeight" value="600" placeholder="Height">
+                            </div>
+                        </div>
+
+                        <!-- Spacing / Kerf -->
+                        <div class="control-group">
+                            <div class="control-label">
+                                <span>Part Spacing (Kerf)</span>
+                                <span class="control-value" id="spacingVal">4 mm</span>
+                            </div>
+                            <input type="range" class="range-slider" id="spacingSlider" min="0" max="25" step="1" value="4">
+                        </div>
+
+                        <!-- Sheet Edge Margin -->
+                        <div class="control-group">
+                            <div class="control-label">
+                                <span>Sheet Margin</span>
+                                <span class="control-value" id="marginVal">8 mm</span>
+                            </div>
+                            <input type="range" class="range-slider" id="marginSlider" min="0" max="30" step="1" value="8">
+                        </div>
+
+                        <!-- Allowed Rotations -->
+                        <div class="control-group">
+                            <div class="control-label">
+                                <span>Allowed Rotations</span>
+                            </div>
+                            <select class="input-field" id="rotationsSelect">
+                                <option value="1">1 (0° Fixed)</option>
+                                <option value="2">2 (0°, 180°)</option>
+                                <option value="4" selected>4 (0°, 90°, 180°, 270°)</option>
+                                <option value="8">8 (Every 45° Steps)</option>
+                            </select>
+                        </div>
+
+                        <!-- Toggles -->
+                        <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 4px;">
+                            <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; font-size: 13px; color: var(--text-primary);">
+                                <input type="checkbox" id="useHolesToggle" checked style="accent-color: var(--accent); width: 16px; height: 16px;">
+                                <span>Nest Inside Holes (Parts-in-Parts)</span>
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; font-size: 13px; color: var(--text-primary);">
+                                <input type="checkbox" id="commonLineToggle" checked style="accent-color: var(--accent); width: 16px; height: 16px;">
+                                <span>Common-Line Cutting (Shared Edge)</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- TAB 2: DEVIS & QUOTATION -->
+                    <div id="devisTabContent" style="display: none; flex-direction: column; gap: 14px;">
+                        <div class="control-group">
+                            <div class="control-label">
+                                <span>Material Type</span>
+                            </div>
+                            <select class="input-field" id="materialSelect">
+                                <option value="steel" selected>Mild Steel (Acier doux S235)</option>
+                                <option value="inox">Stainless Steel (Inox 304)</option>
+                                <option value="aluminum">Aluminum (Alu 5083)</option>
+                                <option value="brass">Brass (Laiton CuZn37)</option>
+                                <option value="mdf">Wood / MDF</option>
+                            </select>
+                        </div>
+
+                        <div class="control-group">
+                            <div class="control-label">
+                                <span>Sheet Thickness (mm)</span>
+                            </div>
+                            <select class="input-field" id="thicknessSelect">
+                                <option value="1.5">1.5 mm</option>
+                                <option value="2.0" selected>2.0 mm</option>
+                                <option value="3.0">3.0 mm</option>
+                                <option value="5.0">5.0 mm</option>
+                                <option value="8.0">8.0 mm</option>
+                                <option value="10.0">10.0 mm</option>
+                            </select>
+                        </div>
+
+                        <!-- Live Quotation Card -->
+                        <div class="devis-card">
+                            <div class="devis-header">
+                                <div class="devis-title">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <line x1="12" y1="1" x2="12" y2="23"></line>
+                                        <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+                                    </svg>
+                                    Devis Estimation (MAD)
+                                </div>
+                                <div class="savings-pill" id="devisSavingsPill">Saved: 0 MAD</div>
+                            </div>
+
+                            <div class="devis-row">
+                                <span>Total Weight:</span>
+                                <strong id="devisWeight">0.0 kg</strong>
+                            </div>
+                            <div class="devis-row">
+                                <span>Material Cost:</span>
+                                <strong id="devisMaterialCost">0 MAD</strong>
+                            </div>
+                            <div class="devis-row">
+                                <span>Cutting Time (Laser):</span>
+                                <strong id="devisTime">0.0 min</strong>
+                            </div>
+                            <div class="devis-row">
+                                <span>Machining Cost:</span>
+                                <strong id="devisMachineCost">0 MAD</strong>
+                            </div>
+                            <div class="devis-row">
+                                <span>Shared Line Saving:</span>
+                                <strong id="devisSharedCut" style="color: var(--success);">-0 MAD</strong>
+                            </div>
+
+                            <div class="devis-total-box">
+                                <div>
+                                    <div class="devis-total-label">Total Job Quotation</div>
+                                    <div style="font-size: 11px; color: var(--text-muted);" id="devisUnitPart">0 MAD / part</div>
+                                </div>
+                                <div class="devis-total-val" id="devisTotalMAD">0 <span style="font-size: 12px; font-weight: 500;">DH</span></div>
+                            </div>
+                        </div>
+
+                        <button class="btn-secondary" id="printDevisBtn" style="width: 100%;">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="6 9 6 2 18 2 18 9"></polyline>
+                                <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
+                                <rect x="6" y="14" width="12" height="8"></rect>
+                            </svg>
+                            Print Official Devis (PDF)
+                        </button>
+                    </div>
+                </div>
+            </aside>
+        </main>
+    </div>
+
+    <!-- Scripts -->
+    <script src="engine/clipper.js?v=5"></script>
+    <script src="engine/geometry.js?v=5"></script>
+    <script src="engine/dxf-parser.js?v=5"></script>
+    <script src="engine/cost-calculator.js?v=5"></script>
+    <script src="engine/nester.js?v=5"></script>
+    <script src="app.js?v=5"></script>
+</body>
+</html>
