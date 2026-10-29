@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>0machine Nest — Autonomous CAD/CAM Nesting Engine</title>
     <meta name="description" content="Industrial 2D irregular nesting engine with genetic optimization, kerf compensation, and sheet packing by 0machine.">
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="styles.css?v=12">
 </head>
 <body>
     <!-- Subtle Grid Background -->
@@ -358,6 +358,24 @@
 
                     <!-- TAB 1: TEXT-TO-LASER AI GENERATOR -->
                     <div id="aiPromptSection" style="display: flex; flex-direction: column; gap: 14px;">
+                        <!-- Google AI Studio API Key Card -->
+                        <div class="api-key-bar">
+                            <div class="api-key-header">
+                                <span>🔑 Google AI Studio Key (Imagen 3)</span>
+                                <span class="api-status-badge" id="apiKeyStatus">Offline Presets</span>
+                            </div>
+                            <div style="display: flex; gap: 6px;">
+                                <input type="password" id="geminiApiKeyInput" class="input-field" 
+                                    placeholder="Paste AIzaSy... key from Google AI Studio" 
+                                    style="font-size: 11px; padding: 6px 10px; flex: 1;">
+                                <button class="btn-secondary" id="saveApiKeyBtn" style="padding: 6px 12px; font-size: 11px; white-space: nowrap;">Save</button>
+                            </div>
+                            <div style="font-size: 9px; color: var(--text-muted); display: flex; justify-content: space-between;">
+                                <span>Saved in browser localStorage</span>
+                                <a href="https://aistudio.google.com/api-keys" target="_blank" style="color: var(--accent); text-decoration: none;">Get Free Key ↗</a>
+                            </div>
+                        </div>
+
                         <div>
                             <label class="control-label" style="margin-bottom: 6px;">
                                 <span>Prompt / Description</span>
@@ -540,12 +558,12 @@
     </div>
 
     <!-- Scripts -->
-    <script src="engine/clipper.js?v=6"></script>
-    <script src="engine/geometry.js?v=6"></script>
-    <script src="engine/dxf-parser.js?v=6"></script>
-    <script src="engine/cost-calculator.js?v=6"></script>
-    <script src="engine/nester.js?v=6"></script>
-    <script src="engine/laser-ai.js?v=6"></script>
-    <script src="app.js?v=6"></script>
+    <script src="engine/clipper.js?v=12"></script>
+    <script src="engine/geometry.js?v=12"></script>
+    <script src="engine/dxf-parser.js?v=12"></script>
+    <script src="engine/cost-calculator.js?v=12"></script>
+    <script src="engine/nester.js?v=12"></script>
+    <script src="engine/laser-ai.js?v=12"></script>
+    <script src="app.js?v=12"></script>
 </body>
 </html>

@@ -754,9 +754,46 @@ document.addEventListener('DOMContentLoaded', () => {
     const statHoles = document.getElementById('statHoles');
     const statCost = document.getElementById('statCost');
 
+    const geminiApiKeyInput = document.getElementById('geminiApiKeyInput');
+    const saveApiKeyBtn = document.getElementById('saveApiKeyBtn');
+    const apiKeyStatus = document.getElementById('apiKeyStatus');
+
     const addToNestBtn = document.getElementById('addToNestBtn');
     const exportLaserSvgBtn = document.getElementById('exportLaserSvgBtn');
     const exportLaserDxfBtn = document.getElementById('exportLaserDxfBtn');
+
+    // Google AI Studio API Key Storage
+    const savedApiKey = localStorage.getItem('0machine_gemini_api_key');
+    if (savedApiKey && geminiApiKeyInput) {
+        geminiApiKeyInput.value = savedApiKey;
+        updateApiKeyBadge(true);
+    }
+
+    function updateApiKeyBadge(hasKey) {
+        if (!apiKeyStatus) return;
+        if (hasKey) {
+            apiKeyStatus.textContent = "Connected (Imagen 3)";
+            apiKeyStatus.className = "api-status-badge connected";
+        } else {
+            apiKeyStatus.textContent = "Offline Presets";
+            apiKeyStatus.className = "api-status-badge";
+        }
+    }
+
+    if (saveApiKeyBtn && geminiApiKeyInput) {
+        saveApiKeyBtn.addEventListener('click', () => {
+            const val = geminiApiKeyInput.value.trim();
+            if (val) {
+                localStorage.setItem('0machine_gemini_api_key', val);
+                updateApiKeyBadge(true);
+                showStudioLoading("Connected to Google AI Studio! Testing Imagen 3...");
+                triggerAiGeneration();
+            } else {
+                localStorage.removeItem('0machine_gemini_api_key');
+                updateApiKeyBadge(false);
+            }
+        });
+    }
 
     // Open/Close Modal
     function openLaserAiModal() {
@@ -916,9 +953,11 @@ document.addEventListener('DOMContentLoaded', () => {
         showStudioLoading("Generating Laser CAD vectors...");
         const prompt = aiPromptInput.value || "Imperial eagle woodcut emblem";
         const targetWidth = parseFloat(targetSizeSlider.value) || 120;
+        const apiKey = localStorage.getItem('0machine_gemini_api_key') || (geminiApiKeyInput ? geminiApiKeyInput.value.trim() : null);
 
         try {
             const result = await laserAiEngine.generateFromPrompt(prompt, activeAiMode, {
+                apiKey: apiKey,
                 targetWidthMm: targetWidth,
                 smoothing: parseFloat(smoothingSlider.value) || 1.5,
                 speckleFilter: parseInt(speckleSlider.value) || 12
@@ -1098,19 +1137,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Bottom width dimension
         const botY = maxY * scale + offsetY + 20;
-        ctx.fillText(`↔ ${part.stats.width} mm`, cw / 2, botY);
+        ctx.fillText(`W: ${part.stats.width} mm`, cw / 2, botY);
 
         // Left height dimension
         ctx.save();
         ctx.translate(minX * scale + offsetX - 18, ch / 2);
         ctx.rotate(-Math.PI / 2);
-        ctx.fillText(`↕ ${part.stats.height} mm`, 0, 0);
+        ctx.fillText(`H: ${part.stats.height} mm`, 0, 0);
         ctx.restore();
 
         ctx.restore();
 
         // Update Telemetry HUD
-        if (statDim) statDim.textContent = `${part.stats.width} × ${part.stats.height} mm`;
+        if (statDim) statDim.textContent = `${part.stats.width} x ${part.stats.height} mm`;
         if (statPerimeter) statPerimeter.textContent = `${part.stats.cutPerimeterMm} mm`;
         if (statHoles) statHoles.textContent = `${part.stats.holesCount} Cutout${part.stats.holesCount === 1 ? '' : 's'}`;
         if (statCost) statCost.textContent = `${part.stats.estCostMad} MAD`;

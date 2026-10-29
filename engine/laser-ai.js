@@ -140,7 +140,7 @@
             // Check if we have an active Gemini proxy or API endpoint
             let generatedImageBase64 = null;
             try {
-                generatedImageBase64 = await this._callGeminiImageApi(prompt, mode);
+                generatedImageBase64 = await this._callGeminiImageApi(prompt, mode, options);
             } catch (err) {
                 console.warn("[LaserAI] Online API skipped or unavailable, using procedural synthesis:", err.message);
             }
@@ -552,35 +552,89 @@
             return dxf;
         }
 
-        // ==========================================
-        // AI GENERATOR & PROCEDURAL SYNTHESIZER
-        // ==========================================
+        async _callGeminiImageApi(prompt, mode, options = {}) {
+            const apiKey = options.apiKey || localStorage.getItem('0machine_gemini_api_key');
+            if (!apiKey) {
+                // If no key provided, check if local proxy is active
+                return await this._callLocalProxy(prompt, mode);
+            }
 
-        async _callGeminiImageApi(prompt, mode) {
-            // Forward to local proxy if available on 8088
-            const payload = {
-                model: "gemini-3.5-flash",
-                messages: [
-                    {
-                        role: "user",
-                        content: `Generate an industrial laser cutting vector silhouette of: ${prompt}. Mode: ${mode}. Must be pure solid black (#000000) on pure white (#FFFFFF) background. No gray, no gradients.`
+            // Construct laser-optimized prompt for Google Imagen 3
+            let styleInstruction = "woodcut engraving, clean sharp cuttable lines, bold continuous silhouette";
+            if (mode === 'stencil' || mode === 'connected-stencil') {
+                styleInstruction = "laser cut stencil silhouette with connected bridges, no loose floating islands, one-piece cut art";
+            } else if (mode === 'keychain' || mode === 'keychain-medallion') {
+                styleInstruction = "circular medallion pendant graphic, bold linework, suitable for 40mm keychain engraving";
+            } else if (mode === 'layered' || mode === 'layered-scene') {
+                styleInstruction = "multi-depth layered shadowbox scenery, distinct foreground and background silhouettes";
+            }
+
+            const engineeredPrompt = `Laser cut design of ${prompt}. ${styleInstruction}. Pure solid black (#000000) on solid pure white (#FFFFFF) background. Vector graphic art, high contrast, clean closed contours, zero gradients, zero shadows, zero gray shades.`;
+
+            console.log("[LaserAI] Calling Google AI Studio Imagen 3 with prompt:", engineeredPrompt);
+
+            // 1. Try Google Imagen 3 Image Generation endpoint
+            try {
+                const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict?key=${apiKey}`;
+                const res = await fetch(endpoint, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        instances: [{ prompt: engineeredPrompt }],
+                        parameters: {
+                            sampleCount: 1,
+                            aspectRatio: "1:1",
+                            outputMimeType: "image/png"
+                        }
+                    })
+                });
+
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.predictions && data.predictions[0] && data.predictions[0].bytesBase64Encoded) {
+                        console.log("[LaserAI] Imagen 3 generated image successfully!");
+                        return "data:image/png;base64," + data.predictions[0].bytesBase64Encoded;
                     }
-                ]
-            };
+                } else {
+                    const errText = await res.text();
+                    console.warn("[LaserAI] Imagen 3 error, checking fallback:", res.status, errText);
+                }
+            } catch (err) {
+                console.warn("[LaserAI] Imagen 3 request error:", err.message);
+            }
 
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 2000);
+            // 2. Fallback to local proxy if available
+            return await this._callLocalProxy(prompt, mode);
+        }
 
-            const res = await fetch("http://127.0.0.1:8088/v1beta/openai/chat/completions", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(payload),
-                signal: controller.signal
-            });
-            clearTimeout(timeoutId);
+        async _callLocalProxy(prompt, mode) {
+            try {
+                const payload = {
+                    model: "gemini-3.5-flash",
+                    messages: [
+                        {
+                            role: "user",
+                            content: `Generate an industrial laser cutting vector silhouette of: ${prompt}. Mode: ${mode}. Must be pure solid black (#000000) on pure white (#FFFFFF) background.`
+                        }
+                    ]
+                };
 
-            if (!res.ok) throw new Error("Proxy response not ok");
-            return null; // Fallback to parametric synthesis
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 2500);
+
+                const res = await fetch("http://127.0.0.1:8088/v1beta/openai/chat/completions", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payload),
+                    signal: controller.signal
+                });
+                clearTimeout(timeoutId);
+
+                if (!res.ok) throw new Error("Local proxy error");
+                return null;
+            } catch (e) {
+                return null;
+            }
         }
 
         _synthesizeLaserArtwork(prompt, mode, options) {
