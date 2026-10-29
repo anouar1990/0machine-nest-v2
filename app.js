@@ -711,7 +711,465 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // ==========================================
+    // 0machine LaserAI Studio Controller
+    // ==========================================
+    const laserAiEngine = new LaserAiEngine();
+    let currentLaserPart = null;
+    let currentUploadedImage = null;
+    let activeAiMode = 'standard';
+
+    const laserAiModal = document.getElementById('laserAiModal');
+    const openLaserAiBtn = document.getElementById('openLaserAiBtn');
+    const openLaserAiSidebarBtn = document.getElementById('openLaserAiSidebarBtn');
+    const closeLaserAiModalBtn = document.getElementById('closeLaserAiModalBtn');
+
+    const tabPromptBtn = document.getElementById('tabPromptBtn');
+    const tabTraceBtn = document.getElementById('tabTraceBtn');
+    const aiPromptSection = document.getElementById('aiPromptSection');
+    const aiTraceSection = document.getElementById('aiTraceSection');
+
+    const aiPromptInput = document.getElementById('aiPromptInput');
+    const targetSizeSlider = document.getElementById('targetSizeSlider');
+    const targetSizeVal = document.getElementById('targetSizeVal');
+    const generateLaserBtn = document.getElementById('generateLaserBtn');
+
+    const tracerDropzone = document.getElementById('tracerDropzone');
+    const tracerFileInput = document.getElementById('tracerFileInput');
+    const thresholdSlider = document.getElementById('thresholdSlider');
+    const thresholdVal = document.getElementById('thresholdVal');
+    const smoothingSlider = document.getElementById('smoothingSlider');
+    const smoothingVal = document.getElementById('smoothingVal');
+    const speckleSlider = document.getElementById('speckleSlider');
+    const speckleVal = document.getElementById('speckleVal');
+    const invertColorsCheck = document.getElementById('invertColorsCheck');
+    const retraceBtn = document.getElementById('retraceBtn');
+
+    const studioPreviewCanvas = document.getElementById('studioPreviewCanvas');
+    const studioLoadingOverlay = document.getElementById('studioLoadingOverlay');
+    const studioLoadingText = document.getElementById('studioLoadingText');
+
+    const statDim = document.getElementById('statDim');
+    const statPerimeter = document.getElementById('statPerimeter');
+    const statHoles = document.getElementById('statHoles');
+    const statCost = document.getElementById('statCost');
+
+    const addToNestBtn = document.getElementById('addToNestBtn');
+    const exportLaserSvgBtn = document.getElementById('exportLaserSvgBtn');
+    const exportLaserDxfBtn = document.getElementById('exportLaserDxfBtn');
+
+    // Open/Close Modal
+    function openLaserAiModal() {
+        if (!laserAiModal) return;
+        laserAiModal.classList.add('active');
+        if (!currentLaserPart) {
+            triggerAiGeneration();
+        } else {
+            renderStudioPreview(currentLaserPart);
+        }
+    }
+
+    function closeLaserAiModal() {
+        if (!laserAiModal) return;
+        laserAiModal.classList.remove('active');
+    }
+
+    if (openLaserAiBtn) openLaserAiBtn.addEventListener('click', openLaserAiModal);
+    if (openLaserAiSidebarBtn) openLaserAiSidebarBtn.addEventListener('click', openLaserAiModal);
+    if (closeLaserAiModalBtn) closeLaserAiModalBtn.addEventListener('click', closeLaserAiModal);
+
+    // Close on escape or outside click
+    window.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && laserAiModal && laserAiModal.classList.contains('active')) {
+            closeLaserAiModal();
+        }
+    });
+
+    laserAiModal.addEventListener('click', (e) => {
+        if (e.target === laserAiModal) closeLaserAiModal();
+    });
+
+    // Tab Navigation
+    tabPromptBtn.addEventListener('click', () => {
+        tabPromptBtn.classList.add('active');
+        tabTraceBtn.classList.remove('active');
+        aiPromptSection.style.display = 'flex';
+        aiTraceSection.style.display = 'none';
+    });
+
+    tabTraceBtn.addEventListener('click', () => {
+        tabTraceBtn.classList.add('active');
+        tabPromptBtn.classList.remove('active');
+        aiPromptSection.style.display = 'none';
+        aiTraceSection.style.display = 'flex';
+    });
+
+    // Laser Mode Selection
+    document.querySelectorAll('.mode-card').forEach(card => {
+        card.addEventListener('click', () => {
+            document.querySelectorAll('.mode-card').forEach(c => c.classList.remove('active'));
+            card.classList.add('active');
+            activeAiMode = card.getAttribute('data-mode') || 'standard';
+            triggerAiGeneration();
+        });
+    });
+
+    // Preset Pills
+    document.querySelectorAll('.preset-pill').forEach(pill => {
+        pill.addEventListener('click', () => {
+            const preset = pill.getAttribute('data-preset');
+            if (preset === 'eagle') {
+                aiPromptInput.value = 'Imperial eagle woodcut emblem';
+                setMode('standard');
+            } else if (preset === 'wolf') {
+                aiPromptInput.value = 'Geometric wolf head stencil';
+                setMode('connected-stencil');
+            } else if (preset === 'gear') {
+                aiPromptInput.value = 'Precision industrial gear medallion';
+                setMode('keychain-medallion');
+            } else if (preset === 'plaque') {
+                aiPromptInput.value = '0machine lab family sign established 2026';
+                setMode('standard');
+            } else if (preset === 'mountain') {
+                aiPromptInput.value = 'Three peaks mountain layered scene';
+                setMode('layered-scene');
+            }
+            triggerAiGeneration();
+        });
+    });
+
+    function setMode(modeName) {
+        activeAiMode = modeName;
+        document.querySelectorAll('.mode-card').forEach(c => {
+            if (c.getAttribute('data-mode') === modeName) {
+                c.classList.add('active');
+            } else {
+                c.classList.remove('active');
+            }
+        });
+    }
+
+    // Sliders
+    targetSizeSlider.addEventListener('input', () => {
+        targetSizeVal.textContent = `${targetSizeSlider.value} mm`;
+    });
+    targetSizeSlider.addEventListener('change', () => {
+        if (currentLaserPart) {
+            triggerAiGeneration();
+        }
+    });
+
+    thresholdSlider.addEventListener('input', () => {
+        thresholdVal.textContent = thresholdSlider.value;
+    });
+
+    smoothingSlider.addEventListener('input', () => {
+        smoothingVal.textContent = smoothingSlider.value;
+    });
+
+    speckleSlider.addEventListener('input', () => {
+        speckleVal.textContent = `${speckleSlider.value} px`;
+    });
+
+    // Image Upload & Tracing
+    tracerDropzone.addEventListener('click', () => tracerFileInput.click());
+    tracerFileInput.addEventListener('change', (e) => {
+        if (e.target.files && e.target.files[0]) {
+            handleTracerImage(e.target.files[0]);
+        }
+    });
+
+    tracerDropzone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        tracerDropzone.style.borderColor = 'var(--accent)';
+    });
+
+    tracerDropzone.addEventListener('dragleave', () => {
+        tracerDropzone.style.borderColor = 'rgba(255, 255, 255, 0.15)';
+    });
+
+    tracerDropzone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        tracerDropzone.style.borderColor = 'rgba(255, 255, 255, 0.15)';
+        if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+            handleTracerImage(e.dataTransfer.files[0]);
+        }
+    });
+
+    function handleTracerImage(file) {
+        currentUploadedImage = file;
+        triggerImageTrace();
+    }
+
+    if (retraceBtn) {
+        retraceBtn.addEventListener('click', () => {
+            if (currentUploadedImage) {
+                triggerImageTrace();
+            } else {
+                triggerAiGeneration();
+            }
+        });
+    }
+
+    // AI Generation Runner
+    async function triggerAiGeneration() {
+        showStudioLoading("Generating Laser CAD vectors...");
+        const prompt = aiPromptInput.value || "Imperial eagle woodcut emblem";
+        const targetWidth = parseFloat(targetSizeSlider.value) || 120;
+
+        try {
+            const result = await laserAiEngine.generateFromPrompt(prompt, activeAiMode, {
+                targetWidthMm: targetWidth,
+                smoothing: parseFloat(smoothingSlider.value) || 1.5,
+                speckleFilter: parseInt(speckleSlider.value) || 12
+            });
+            currentLaserPart = result;
+            renderStudioPreview(result);
+        } catch (err) {
+            console.error("AI Generation failed:", err);
+            alert("Generation failed: " + err.message);
+        } finally {
+            hideStudioLoading();
+        }
+    }
+
+    // Image Trace Runner
+    async function triggerImageTrace() {
+        if (!currentUploadedImage) return;
+        showStudioLoading("Extracting vector contours & holes...");
+        try {
+            const result = await laserAiEngine.traceImage(currentUploadedImage, {
+                threshold: parseInt(thresholdSlider.value) || 128,
+                smoothing: parseFloat(smoothingSlider.value) || 1.5,
+                speckleFilter: parseInt(speckleSlider.value) || 12,
+                invert: invertColorsCheck.checked,
+                targetWidthMm: parseFloat(targetSizeSlider.value) || 120,
+                mode: activeAiMode,
+                name: currentUploadedImage.name.replace(/\.[^/.]+$/, "")
+            });
+            currentLaserPart = result;
+            renderStudioPreview(result);
+        } catch (err) {
+            console.error("Trace failed:", err);
+            alert("Trace failed: " + err.message);
+        } finally {
+            hideStudioLoading();
+        }
+    }
+
+    if (generateLaserBtn) {
+        generateLaserBtn.addEventListener('click', triggerAiGeneration);
+    }
+
+    function showStudioLoading(text) {
+        if (studioLoadingText) studioLoadingText.textContent = text;
+        if (studioLoadingOverlay) studioLoadingOverlay.style.display = 'flex';
+    }
+
+    function hideStudioLoading() {
+        if (studioLoadingOverlay) studioLoadingOverlay.style.display = 'none';
+    }
+
+    // Render CAD Vector Preview
+    function renderStudioPreview(part) {
+        if (!part || !studioPreviewCanvas) return;
+        const ctx = studioPreviewCanvas.getContext('2d');
+        const cw = studioPreviewCanvas.width = 600;
+        const ch = studioPreviewCanvas.height = 460;
+
+        ctx.clearRect(0, 0, cw, ch);
+
+        // Dark CAD Background
+        ctx.fillStyle = '#06070B';
+        ctx.fillRect(0, 0, cw, ch);
+
+        // Draw Millimeter Engineering Grid
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.03)';
+        ctx.lineWidth = 1;
+        const gridStep = 25;
+        for (let x = 0; x < cw; x += gridStep) {
+            ctx.beginPath();
+            ctx.moveTo(x, 0); ctx.lineTo(x, ch);
+            ctx.stroke();
+        }
+        for (let y = 0; y < ch; y += gridStep) {
+            ctx.beginPath();
+            ctx.moveTo(0, y); ctx.lineTo(cw, y);
+            ctx.stroke();
+        }
+
+        const poly = part.polygon;
+        const holes = part.holes || [];
+        if (!poly || poly.length < 3) return;
+
+        // Bounding Box
+        let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+        poly.forEach(p => {
+            if (p.x < minX) minX = p.x;
+            if (p.x > maxX) maxX = p.x;
+            if (p.y < minY) minY = p.y;
+            if (p.y > maxY) maxY = p.y;
+        });
+
+        const partW = maxX - minX || 1;
+        const partH = maxY - minY || 1;
+
+        // Auto-scale with 40px margin
+        const margin = 50;
+        const scale = Math.min((cw - margin * 2) / partW, (ch - margin * 2) / partH);
+        const offsetX = (cw - partW * scale) / 2 - minX * scale;
+        const offsetY = (ch - partH * scale) / 2 - minY * scale;
+
+        const toScreen = (p) => ({
+            x: p.x * scale + offsetX,
+            y: p.y * scale + offsetY
+        });
+
+        // 1. Draw Subtle Part Fill (Wood / Steel look)
+        ctx.save();
+        ctx.beginPath();
+        const p0 = toScreen(poly[0]);
+        ctx.moveTo(p0.x, p0.y);
+        poly.slice(1).forEach(p => {
+            const sp = toScreen(p);
+            ctx.lineTo(sp.x, sp.y);
+        });
+        ctx.closePath();
+
+        // Cutout holes in fill using evenodd rule
+        holes.forEach(hole => {
+            if (hole.length > 2) {
+                const hp0 = toScreen(hole[0]);
+                ctx.moveTo(hp0.x, hp0.y);
+                hole.slice(1).forEach(p => {
+                    const sp = toScreen(p);
+                    ctx.lineTo(sp.x, sp.y);
+                });
+                ctx.closePath();
+            }
+        });
+
+        ctx.fillStyle = 'rgba(254, 119, 51, 0.08)';
+        ctx.fill('evenodd');
+        ctx.restore();
+
+        // 2. Draw Outer Cut Contour (Neon Laser Red #FF0055)
+        ctx.save();
+        ctx.shadowColor = 'rgba(255, 0, 85, 0.5)';
+        ctx.shadowBlur = 8;
+        ctx.strokeStyle = '#FF0055';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.moveTo(p0.x, p0.y);
+        poly.slice(1).forEach(p => {
+            const sp = toScreen(p);
+            ctx.lineTo(sp.x, sp.y);
+        });
+        ctx.closePath();
+        ctx.stroke();
+        ctx.restore();
+
+        // 3. Draw Internal Cutouts / Holes (Cyan #00D2FF)
+        ctx.save();
+        ctx.shadowColor = 'rgba(0, 210, 255, 0.4)';
+        ctx.shadowBlur = 6;
+        ctx.strokeStyle = '#00D2FF';
+        ctx.lineWidth = 1.8;
+        holes.forEach(hole => {
+            if (hole.length > 2) {
+                ctx.beginPath();
+                const hp0 = toScreen(hole[0]);
+                ctx.moveTo(hp0.x, hp0.y);
+                hole.slice(1).forEach(p => {
+                    const sp = toScreen(p);
+                    ctx.lineTo(sp.x, sp.y);
+                });
+                ctx.closePath();
+                ctx.stroke();
+            }
+        });
+        ctx.restore();
+
+        // 4. Draw CAD Dimension Callouts
+        ctx.save();
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+        ctx.font = '10px monospace';
+        ctx.textAlign = 'center';
+
+        // Bottom width dimension
+        const botY = maxY * scale + offsetY + 20;
+        ctx.fillText(`↔ ${part.stats.width} mm`, cw / 2, botY);
+
+        // Left height dimension
+        ctx.save();
+        ctx.translate(minX * scale + offsetX - 18, ch / 2);
+        ctx.rotate(-Math.PI / 2);
+        ctx.fillText(`↕ ${part.stats.height} mm`, 0, 0);
+        ctx.restore();
+
+        ctx.restore();
+
+        // Update Telemetry HUD
+        if (statDim) statDim.textContent = `${part.stats.width} × ${part.stats.height} mm`;
+        if (statPerimeter) statPerimeter.textContent = `${part.stats.cutPerimeterMm} mm`;
+        if (statHoles) statHoles.textContent = `${part.stats.holesCount} Cutout${part.stats.holesCount === 1 ? '' : 's'}`;
+        if (statCost) statCost.textContent = `${part.stats.estCostMad} MAD`;
+    }
+
+    // Add to Active Nesting Inventory
+    if (addToNestBtn) {
+        addToNestBtn.addEventListener('click', () => {
+            if (!currentLaserPart) return;
+
+            const color = colorPalette[nester.parts.length % colorPalette.length];
+            nester.addPart({
+                name: currentLaserPart.name || 'Laser_AI_Part',
+                polygon: currentLaserPart.polygon,
+                holes: currentLaserPart.holes || [],
+                quantity: 2,
+                color: color
+            });
+
+            renderPartsList();
+            fitToView();
+            closeLaserAiModal();
+
+            // Status message
+            const statusText = document.getElementById('statusText');
+            if (statusText) statusText.textContent = `Added "${currentLaserPart.name}" to Nest!`;
+        });
+    }
+
+    // Export Laser SVG
+    if (exportLaserSvgBtn) {
+        exportLaserSvgBtn.addEventListener('click', () => {
+            if (!currentLaserPart || !currentLaserPart.svgString) return;
+            downloadFile(currentLaserPart.svgString, `${currentLaserPart.name || 'laser_part'}.svg`, 'image/svg+xml');
+        });
+    }
+
+    // Export CAD DXF
+    if (exportLaserDxfBtn) {
+        exportLaserDxfBtn.addEventListener('click', () => {
+            if (!currentLaserPart || !currentLaserPart.dxfString) return;
+            downloadFile(currentLaserPart.dxfString, `${currentLaserPart.name || 'laser_part'}.dxf`, 'application/dxf');
+        });
+    }
+
+    function downloadFile(content, fileName, mimeType) {
+        const blob = new Blob([content], { type: mimeType });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+
     // Initial render
     renderPartsList();
     draw();
 });
+
